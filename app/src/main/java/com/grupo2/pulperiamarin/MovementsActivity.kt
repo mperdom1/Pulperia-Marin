@@ -2,18 +2,12 @@ package com.grupo2.pulperiamarin
 
 import android.content.ContentValues
 import android.os.Bundle
-import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ListView
-import android.widget.RadioButton
-import android.widget.RadioGroup
-import android.widget.Spinner
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
 class MovementsActivity : AppCompatActivity() {
 
@@ -21,12 +15,11 @@ class MovementsActivity : AppCompatActivity() {
     private lateinit var spinnerProduct: Spinner
     private lateinit var rgType: RadioGroup
     private lateinit var rbIn: RadioButton
-    private lateinit var etQty: EditText
-    private lateinit var etNotes: EditText
-    private lateinit var btnRegister: Button
+    private lateinit var etQty: TextInputEditText
+    private lateinit var etNotes: TextInputEditText
+    private lateinit var btnRegister: MaterialButton
     private lateinit var lvMovements: ListView
 
-    // Lista de ids para relacionar spinner con BD
     private val productIds = mutableListOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,19 +43,14 @@ class MovementsActivity : AppCompatActivity() {
 
     private fun loadProductsSpinner() {
         val db = dbHelper.readableDatabase
-        val cursor = db.query(
-            DatabaseHelper.TABLE_PRODUCTS,
-            arrayOf(DatabaseHelper.COL_PROD_ID, DatabaseHelper.COL_PROD_NAME),
-            null, null, null, null,
-            "${DatabaseHelper.COL_PROD_NAME} ASC"
-        )
+        val cursor = db.query(DatabaseHelper.TABLE_PRODUCTS, arrayOf(DatabaseHelper.COL_PROD_ID, DatabaseHelper.COL_PROD_NAME), null, null, null, null, "${DatabaseHelper.COL_PROD_NAME} ASC")
 
         val names = mutableListOf<String>()
         productIds.clear()
 
         while (cursor.moveToNext()) {
-            productIds.add(cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_PROD_ID)))
-            names.add(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_PROD_NAME)))
+            productIds.add(cursor.getInt(0))
+            names.add(cursor.getString(1))
         }
         cursor.close()
 
@@ -73,37 +61,30 @@ class MovementsActivity : AppCompatActivity() {
 
     private fun registerMovement() {
         if (productIds.isEmpty()) {
-            Toast.makeText(this, "Primero registra un producto", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No hay productos registrados", Toast.LENGTH_SHORT).show()
             return
         }
 
         val qtyStr = etQty.text.toString().trim()
         if (qtyStr.isEmpty()) {
-            Toast.makeText(this, "La cantidad es obligatoria", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Ingresa una cantidad", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val qty       = qtyStr.toInt()
+        val qty       = qtyStr.toIntOrNull() ?: 0
         val notes     = etNotes.text.toString().trim()
         val type      = if (rbIn.isChecked) "IN" else "OUT"
         val productId = productIds[spinnerProduct.selectedItemPosition]
-        val date      = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+        val date      = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
 
         val db = dbHelper.writableDatabase
 
-        // Verificar stock suficiente si es salida
         if (type == "OUT") {
-            val cursor = db.query(
-                DatabaseHelper.TABLE_PRODUCTS,
-                arrayOf(DatabaseHelper.COL_PROD_STOCK),
-                "${DatabaseHelper.COL_PROD_ID} = ?",
-                arrayOf(productId.toString()),
-                null, null, null
-            )
+            val cursor = db.query(DatabaseHelper.TABLE_PRODUCTS, arrayOf(DatabaseHelper.COL_PROD_STOCK), "${DatabaseHelper.COL_PROD_ID} = ?", arrayOf(productId.toString()), null, null, null)
             if (cursor.moveToFirst()) {
                 val currentStock = cursor.getInt(0)
                 if (qty > currentStock) {
-                    Toast.makeText(this, "Stock insuficiente. Disponible: $currentStock", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "Stock insuficiente (Disponible: $currentStock)", Toast.LENGTH_LONG).show()
                     cursor.close()
                     return
                 }
@@ -111,69 +92,46 @@ class MovementsActivity : AppCompatActivity() {
             cursor.close()
         }
 
-        // Guardar movimiento
+        // Insertar Movimiento
         val values = ContentValues().apply {
             put(DatabaseHelper.COL_MOV_PRODUCT_ID, productId)
             put(DatabaseHelper.COL_MOV_QTY, qty)
             put(DatabaseHelper.COL_MOV_TYPE, type)
             put(DatabaseHelper.COL_MOV_DATE, date)
-            put(DatabaseHelper.COL_MOV_NOTES, notes.ifEmpty { null })
+            put(DatabaseHelper.COL_MOV_NOTES, notes)
         }
         db.insert(DatabaseHelper.TABLE_MOVEMENTS, null, values)
 
-        // Actualizar stock del producto
-        val stockChange = if (type == "IN") qty else -qty
-        db.execSQL(
-            "UPDATE ${DatabaseHelper.TABLE_PRODUCTS} SET ${DatabaseHelper.COL_PROD_STOCK} = ${DatabaseHelper.COL_PROD_STOCK} + ? WHERE ${DatabaseHelper.COL_PROD_ID} = ?",
-            arrayOf(stockChange, productId)
-        )
+        // Actualizar Stock
+        val delta = if (type == "IN") qty else -qty
+        db.execSQL("UPDATE ${DatabaseHelper.TABLE_PRODUCTS} SET ${DatabaseHelper.COL_PROD_STOCK} = ${DatabaseHelper.COL_PROD_STOCK} + ? WHERE ${DatabaseHelper.COL_PROD_ID} = ?", arrayOf(delta, productId))
 
-        // Verificar si quedó en stock mínimo
         checkLowStock(productId)
 
-        Toast.makeText(this, "Movimiento registrado", Toast.LENGTH_SHORT).show()
-        etQty.text.clear()
-        etNotes.text.clear()
+        etQty.text?.clear()
+        etNotes.text?.clear()
         loadMovements()
+        Toast.makeText(this, "Movimiento registrado", Toast.LENGTH_SHORT).show()
     }
 
     private fun checkLowStock(productId: Int) {
         val db = dbHelper.readableDatabase
-        val cursor = db.query(
-            DatabaseHelper.TABLE_PRODUCTS,
-            arrayOf(
-                DatabaseHelper.COL_PROD_NAME,
-                DatabaseHelper.COL_PROD_STOCK,
-                DatabaseHelper.COL_PROD_MIN_STOCK
-            ),
-            "${DatabaseHelper.COL_PROD_ID} = ?",
-            arrayOf(productId.toString()),
-            null, null, null
-        )
+        val cursor = db.rawQuery("SELECT ${DatabaseHelper.COL_PROD_NAME}, ${DatabaseHelper.COL_PROD_STOCK}, ${DatabaseHelper.COL_PROD_MIN_STOCK} FROM ${DatabaseHelper.TABLE_PRODUCTS} WHERE ${DatabaseHelper.COL_PROD_ID} = ?", arrayOf(productId.toString()))
 
         if (cursor.moveToFirst()) {
-            val name     = cursor.getString(0)
-            val stock    = cursor.getInt(1)
-            val minStock = cursor.getInt(2)
+            val name = cursor.getString(0)
+            val stock = cursor.getInt(1)
+            val min = cursor.getInt(2)
 
-            if (stock <= minStock) {
-                // Guardar alerta en BD
+            if (stock <= min) {
+                Toast.makeText(this, "⚠️ ALERTA: $name tiene stock crítico ($stock)", Toast.LENGTH_LONG).show()
+                // Opcional: Registrar en tabla alerts
                 val alertValues = ContentValues().apply {
                     put(DatabaseHelper.COL_ALERT_PRODUCT_ID, productId)
-                    put(DatabaseHelper.COL_ALERT_TYPE, "LOW_STOCK")
-                    put(DatabaseHelper.COL_ALERT_MESSAGE, "Stock bajo: $name tiene solo $stock unidades")
-                    put(DatabaseHelper.COL_ALERT_DATE,
-                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()))
-                    put(DatabaseHelper.COL_ALERT_STATUS, "PENDING")
+                    put(DatabaseHelper.COL_ALERT_MESSAGE, "Stock bajo: $stock unidades")
+                    put(DatabaseHelper.COL_ALERT_DATE, SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date()))
                 }
                 dbHelper.writableDatabase.insert(DatabaseHelper.TABLE_ALERTS, null, alertValues)
-
-                // Mostrar alerta visual
-                Toast.makeText(
-                    this,
-                    "⚠️ Stock bajo: $name solo tiene $stock unidades",
-                    Toast.LENGTH_LONG
-                ).show()
             }
         }
         cursor.close()
@@ -182,26 +140,21 @@ class MovementsActivity : AppCompatActivity() {
     private fun loadMovements() {
         val db = dbHelper.readableDatabase
         val cursor = db.rawQuery("""
-            SELECT m.${DatabaseHelper.COL_MOV_TYPE},
-                   m.${DatabaseHelper.COL_MOV_QTY},
-                   m.${DatabaseHelper.COL_MOV_DATE},
-                   p.${DatabaseHelper.COL_PROD_NAME}
+            SELECT p.${DatabaseHelper.COL_PROD_NAME}, m.${DatabaseHelper.COL_MOV_QTY}, m.${DatabaseHelper.COL_MOV_TYPE}, m.${DatabaseHelper.COL_MOV_DATE}
             FROM ${DatabaseHelper.TABLE_MOVEMENTS} m
-            INNER JOIN ${DatabaseHelper.TABLE_PRODUCTS} p
-                ON m.${DatabaseHelper.COL_MOV_PRODUCT_ID} = p.${DatabaseHelper.COL_PROD_ID}
-            ORDER BY m.${DatabaseHelper.COL_MOV_DATE} DESC
-        """.trimIndent(), null)
+            JOIN ${DatabaseHelper.TABLE_PRODUCTS} p ON m.${DatabaseHelper.COL_MOV_PRODUCT_ID} = p.${DatabaseHelper.COL_PROD_ID}
+            ORDER BY m.${DatabaseHelper.COL_MOV_ID} DESC LIMIT 20
+        """, null)
 
         val list = mutableListOf<String>()
         while (cursor.moveToNext()) {
-            val type    = if (cursor.getString(0) == "IN") "📥" else "📤"
-            val qty     = cursor.getInt(1)
-            val date    = cursor.getString(2).substring(0, 10)
-            val product = cursor.getString(3)
-            list.add("$type $product | Cant: $qty | $date")
+            val name = cursor.getString(0)
+            val qty  = cursor.getInt(1)
+            val type = if (cursor.getString(2) == "IN") "📥 ENTRADA" else "📤 SALIDA"
+            val date = cursor.getString(3)
+            list.add("$type - $name\nCant: $qty | $date")
         }
         cursor.close()
-
         lvMovements.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, list)
     }
 }

@@ -3,23 +3,25 @@ package com.grupo2.pulperiamarin
 import android.app.AlertDialog
 import android.content.ContentValues
 import android.os.Bundle
+import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
 import java.util.*
 
 class ProductsActivity : AppCompatActivity() {
 
     private lateinit var dbHelper: DatabaseHelper
-    private lateinit var etName: EditText
-    private lateinit var etPrice: EditText
-    private lateinit var etStock: EditText
-    private lateinit var etBarcode: EditText
-    private lateinit var etMinStock: EditText
-    private lateinit var btnSave: Button
+    private lateinit var etName: TextInputEditText
+    private lateinit var etPrice: TextInputEditText
+    private lateinit var etStock: TextInputEditText
+    private lateinit var etBarcode: TextInputEditText
+    private lateinit var etMinStock: TextInputEditText
+    private lateinit var btnSave: MaterialButton
     private lateinit var lvProducts: ListView
 
-    // Para saber si estamos editando
     private var editingId: Int = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,15 +50,14 @@ class ProductsActivity : AppCompatActivity() {
         val barcode  = etBarcode.text.toString().trim()
         val minStockStr = etMinStock.text.toString().trim()
 
-        // Validaciones básicas
         if (name.isEmpty() || priceStr.isEmpty() || stockStr.isEmpty()) {
-            Toast.makeText(this, "Nombre, precio y stock son obligatorios", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Por favor completa los campos obligatorios", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val price    = priceStr.toDouble()
-        val stock    = stockStr.toInt()
-        val minStock = if (minStockStr.isEmpty()) 5 else minStockStr.toInt()
+        val price    = priceStr.toDoubleOrNull() ?: 0.0
+        val stock    = stockStr.toIntOrNull() ?: 0
+        val minStock = if (minStockStr.isEmpty()) 5 else (minStockStr.toIntOrNull() ?: 5)
         val date     = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
 
         val values = ContentValues().apply {
@@ -70,34 +71,27 @@ class ProductsActivity : AppCompatActivity() {
 
         val db = dbHelper.writableDatabase
 
-        if (editingId == -1) {
-            // Crear nuevo
-            db.insert(DatabaseHelper.TABLE_PRODUCTS, null, values)
-            Toast.makeText(this, "Producto guardado", Toast.LENGTH_SHORT).show()
-        } else {
-            // Actualizar existente
-            db.update(
-                DatabaseHelper.TABLE_PRODUCTS,
-                values,
-                "${DatabaseHelper.COL_PROD_ID} = ?",
-                arrayOf(editingId.toString())
-            )
-            Toast.makeText(this, "Producto actualizado", Toast.LENGTH_SHORT).show()
-            editingId = -1
-            btnSave.text = "Guardar Producto"
+        try {
+            if (editingId == -1) {
+                db.insertOrThrow(DatabaseHelper.TABLE_PRODUCTS, null, values)
+                Toast.makeText(this, "Producto guardado con éxito", Toast.LENGTH_SHORT).show()
+            } else {
+                db.update(DatabaseHelper.TABLE_PRODUCTS, values, "${DatabaseHelper.COL_PROD_ID} = ?", arrayOf(editingId.toString()))
+                Toast.makeText(this, "Producto actualizado", Toast.LENGTH_SHORT).show()
+                editingId = -1
+                btnSave.text = "Guardar Producto"
+            }
+            clearFields()
+            hideKeyboard()
+            loadProducts()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error: El código de barras ya existe", Toast.LENGTH_LONG).show()
         }
-
-        clearFields()
-        loadProducts()
     }
 
     private fun loadProducts() {
         val db = dbHelper.readableDatabase
-        val cursor = db.query(
-            DatabaseHelper.TABLE_PRODUCTS,
-            null, null, null, null, null,
-            "${DatabaseHelper.COL_PROD_NAME} ASC"
-        )
+        val cursor = db.query(DatabaseHelper.TABLE_PRODUCTS, null, null, null, null, null, "${DatabaseHelper.COL_PROD_NAME} ASC")
 
         val list = mutableListOf<String>()
         val ids  = mutableListOf<Int>()
@@ -109,8 +103,8 @@ class ProductsActivity : AppCompatActivity() {
             val stock = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_PROD_STOCK))
             val minSt = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_PROD_MIN_STOCK))
 
-            val lowStockWarning = if (stock <= minSt) " ⚠️" else ""
-            list.add("$name | L. ${"%.2f".format(price)} | Stock: $stock$lowStockWarning")
+            val warning = if (stock <= minSt) " ⚠️ BAJO STOCK" else ""
+            list.add("$name\nL. ${"%.2f".format(price)} | Stock: $stock$warning")
             ids.add(id)
         }
         cursor.close()
@@ -118,16 +112,16 @@ class ProductsActivity : AppCompatActivity() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, list)
         lvProducts.adapter = adapter
 
-        // Clic largo = opciones editar/eliminar
         lvProducts.setOnItemLongClickListener { _, _, position, _ ->
             showOptions(ids[position], list[position])
             true
         }
     }
 
-    private fun showOptions(productId: Int, productName: String) {
+    private fun showOptions(productId: Int, productInfo: String) {
         AlertDialog.Builder(this)
-            .setTitle(productName)
+            .setTitle("Opciones de Producto")
+            .setMessage(productInfo)
             .setItems(arrayOf("✏️ Editar", "🗑️ Eliminar")) { _, which ->
                 when (which) {
                     0 -> loadForEdit(productId)
@@ -139,13 +133,7 @@ class ProductsActivity : AppCompatActivity() {
 
     private fun loadForEdit(productId: Int) {
         val db = dbHelper.readableDatabase
-        val cursor = db.query(
-            DatabaseHelper.TABLE_PRODUCTS,
-            null,
-            "${DatabaseHelper.COL_PROD_ID} = ?",
-            arrayOf(productId.toString()),
-            null, null, null
-        )
+        val cursor = db.query(DatabaseHelper.TABLE_PRODUCTS, null, "${DatabaseHelper.COL_PROD_ID} = ?", arrayOf(productId.toString()), null, null, null)
 
         if (cursor.moveToFirst()) {
             etName.setText(cursor.getString(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_PROD_NAME)))
@@ -155,33 +143,37 @@ class ProductsActivity : AppCompatActivity() {
             etMinStock.setText(cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_PROD_MIN_STOCK)).toString())
             editingId = productId
             btnSave.text = "Actualizar Producto"
+            etName.requestFocus()
         }
         cursor.close()
     }
 
     private fun confirmDelete(productId: Int) {
         AlertDialog.Builder(this)
-            .setTitle("Eliminar producto")
-            .setMessage("¿Estás segura de que deseas eliminar este producto?")
+            .setTitle("Confirmar eliminación")
+            .setMessage("¿Estás seguro de que deseas borrar este producto y sus movimientos?")
             .setPositiveButton("Eliminar") { _, _ ->
-                val db = dbHelper.writableDatabase
-                db.delete(
-                    DatabaseHelper.TABLE_PRODUCTS,
-                    "${DatabaseHelper.COL_PROD_ID} = ?",
-                    arrayOf(productId.toString())
-                )
-                Toast.makeText(this, "Producto eliminado", Toast.LENGTH_SHORT).show()
+                dbHelper.writableDatabase.delete(DatabaseHelper.TABLE_PRODUCTS, "${DatabaseHelper.COL_PROD_ID} = ?", arrayOf(productId.toString()))
                 loadProducts()
+                Toast.makeText(this, "Producto eliminado", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancelar", null)
             .show()
     }
 
     private fun clearFields() {
-        etName.text.clear()
-        etPrice.text.clear()
-        etStock.text.clear()
-        etBarcode.text.clear()
-        etMinStock.text.clear()
+        etName.text?.clear()
+        etPrice.text?.clear()
+        etStock.text?.clear()
+        etBarcode.text?.clear()
+        etMinStock.setText("5")
+    }
+
+    private fun hideKeyboard() {
+        val view = this.currentFocus
+        if (view != null) {
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(view.windowToken, 0)
+        }
     }
 }

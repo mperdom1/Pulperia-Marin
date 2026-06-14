@@ -8,7 +8,7 @@ class DatabaseHelper(context: Context) :
     SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
-        const val DATABASE_NAME = "pulperia.db"
+        const val DATABASE_NAME = "pulperia_marin.db"
         const val DATABASE_VERSION = 1
 
         // Tabla productos
@@ -30,17 +30,16 @@ class DatabaseHelper(context: Context) :
         const val COL_MOV_DATE = "date"
         const val COL_MOV_NOTES = "notes"
 
-        // Tabla alertas
+        // Tabla alertas (Historial de stock bajo)
         const val TABLE_ALERTS = "alerts"
         const val COL_ALERT_ID = "id"
         const val COL_ALERT_PRODUCT_ID = "product_id"
-        const val COL_ALERT_TYPE = "alert_type"
         const val COL_ALERT_MESSAGE = "message"
         const val COL_ALERT_DATE = "date"
-        const val COL_ALERT_STATUS = "status"  // "PENDING" o "READ"
     }
 
     override fun onCreate(db: SQLiteDatabase) {
+        // Crear tabla de productos
         db.execSQL("""
             CREATE TABLE $TABLE_PRODUCTS (
                 $COL_PROD_ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +52,7 @@ class DatabaseHelper(context: Context) :
             )
         """.trimIndent())
 
+        // Crear tabla de movimientos
         db.execSQL("""
             CREATE TABLE $TABLE_MOVEMENTS (
                 $COL_MOV_ID INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,19 +61,18 @@ class DatabaseHelper(context: Context) :
                 $COL_MOV_TYPE TEXT NOT NULL,
                 $COL_MOV_DATE TEXT NOT NULL,
                 $COL_MOV_NOTES TEXT,
-                FOREIGN KEY($COL_MOV_PRODUCT_ID) REFERENCES $TABLE_PRODUCTS($COL_PROD_ID)
+                FOREIGN KEY($COL_MOV_PRODUCT_ID) REFERENCES $TABLE_PRODUCTS($COL_PROD_ID) ON DELETE CASCADE
             )
         """.trimIndent())
 
+        // Crear tabla de alertas
         db.execSQL("""
             CREATE TABLE $TABLE_ALERTS (
                 $COL_ALERT_ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 $COL_ALERT_PRODUCT_ID INTEGER NOT NULL,
-                $COL_ALERT_TYPE TEXT NOT NULL,
                 $COL_ALERT_MESSAGE TEXT NOT NULL,
                 $COL_ALERT_DATE TEXT NOT NULL,
-                $COL_ALERT_STATUS TEXT NOT NULL DEFAULT 'PENDING',
-                FOREIGN KEY($COL_ALERT_PRODUCT_ID) REFERENCES $TABLE_PRODUCTS($COL_PROD_ID)
+                FOREIGN KEY($COL_ALERT_PRODUCT_ID) REFERENCES $TABLE_PRODUCTS($COL_PROD_ID) ON DELETE CASCADE
             )
         """.trimIndent())
     }
@@ -85,7 +84,6 @@ class DatabaseHelper(context: Context) :
         onCreate(db)
     }
 
-    // Habilitar foreign keys cada vez que se abre la BD
     override fun onOpen(db: SQLiteDatabase) {
         super.onOpen(db)
         if (!db.isReadOnly) {

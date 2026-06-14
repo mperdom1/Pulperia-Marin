@@ -4,49 +4,109 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#F5F5F5"
     android:padding="16dp">
 
     <TextView
         android:id="@+id/tvTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Resumen de Inventario"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="16dp"/>
-
-    <TextView
-        android:id="@+id/tvTotalLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Valor total del inventario:"
-        android:textSize="16sp"
-        app:layout_constraintTop_toBottomOf="@id/tvTitle"
-        app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="24dp"/>
-
-    <TextView
-        android:id="@+id/tvTotalValue"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="L. 0.00"
-        android:textSize="28sp"
+        android:text="Resumen Financiero"
+        android:textSize="22sp"
         android:textStyle="bold"
         android:textColor="#2E7D32"
-        app:layout_constraintTop_toBottomOf="@id/tvTotalLabel"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        android:layout_marginTop="4dp"/>
+        android:layout_marginTop="8dp"/>
+
+    <!-- Tarjeta de Ventas (Dinero en Caja) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardSales"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="2dp"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="#E8F5E9"
+        app:layout_constraintTop_toBottomOf="@id/tvTitle"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="VENTAS TOTALES (CAJA)"
+                android:textSize="12sp"
+                android:textColor="#2E7D32"
+                android:textStyle="bold"/>
+
+            <TextView
+                android:id="@+id/tvTotalSales"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="L. 0.00"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textColor="#1B5E20"
+                android:layout_marginTop="4dp"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Tarjeta de Inventario (Capital en Estantes) -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardInventory"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="12dp"
+        app:cardElevation="2dp"
+        android:layout_marginTop="12dp"
+        android:backgroundTint="#FFFFFF"
+        app:layout_constraintTop_toBottomOf="@id/cardSales"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:gravity="center">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="VALOR EN INVENTARIO"
+                android:textSize="12sp"
+                android:textColor="#666666"/>
+
+            <TextView
+                android:id="@+id/tvTotalInventory"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="L. 0.00"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:textColor="#333333"
+                android:layout_marginTop="4dp"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <TextView
         android:id="@+id/tvTop5Label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Top 5 productos por valor:"
+        android:text="Top 5 Productos más Valiosos"
         android:textSize="16sp"
         android:textStyle="bold"
-        app:layout_constraintTop_toBottomOf="@id/tvTotalValue"
+        android:textColor="#333333"
+        app:layout_constraintTop_toBottomOf="@id/cardInventory"
         app:layout_constraintStart_toStartOf="parent"
         android:layout_marginTop="24dp"/>
 
@@ -54,10 +114,12 @@
         android:id="@+id/lvTop5"
         android:layout_width="0dp"
         android:layout_height="0dp"
+        android:divider="@android:color/transparent"
+        android:dividerHeight="8dp"
+        android:layout_marginTop="8dp"
         app:layout_constraintTop_toBottomOf="@id/tvTop5Label"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="8dp"/>
+        app:layout_constraintEnd_toEndOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
