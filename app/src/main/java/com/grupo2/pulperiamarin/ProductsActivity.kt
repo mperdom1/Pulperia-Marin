@@ -3,6 +3,7 @@ package com.grupo2.pulperiamarin
 import android.app.AlertDialog
 import android.content.ContentValues
 import android.os.Bundle
+import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -20,6 +21,7 @@ class ProductsActivity : AppCompatActivity() {
     private lateinit var etBarcode: TextInputEditText
     private lateinit var etMinStock: TextInputEditText
     private lateinit var btnSave: MaterialButton
+    private lateinit var btnCancel: MaterialButton
     private lateinit var lvProducts: ListView
 
     private var editingId: Int = -1
@@ -36,9 +38,17 @@ class ProductsActivity : AppCompatActivity() {
         etBarcode  = findViewById(R.id.etBarcode)
         etMinStock = findViewById(R.id.etMinStock)
         btnSave    = findViewById(R.id.btnSave)
+        btnCancel  = findViewById(R.id.btnCancel)
         lvProducts = findViewById(R.id.lvProducts)
 
         btnSave.setOnClickListener { saveProduct() }
+        btnCancel.setOnClickListener { 
+            editingId = -1
+            btnSave.text = "Guardar Producto"
+            btnCancel.visibility = View.GONE
+            clearFields()
+            hideKeyboard()
+        }
 
         loadProducts()
     }
@@ -80,6 +90,7 @@ class ProductsActivity : AppCompatActivity() {
                 Toast.makeText(this, "Producto actualizado", Toast.LENGTH_SHORT).show()
                 editingId = -1
                 btnSave.text = "Guardar Producto"
+                btnCancel.visibility = View.GONE
             }
             clearFields()
             hideKeyboard()
@@ -112,22 +123,23 @@ class ProductsActivity : AppCompatActivity() {
         val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, list)
         lvProducts.adapter = adapter
 
-        lvProducts.setOnItemLongClickListener { _, _, position, _ ->
+        // Cambiado a OnItemClickListener (clic normal) para mejor accesibilidad
+        lvProducts.setOnItemClickListener { _, _, position, _ ->
             showOptions(ids[position], list[position])
-            true
         }
     }
 
     private fun showOptions(productId: Int, productInfo: String) {
+        val firstLine = productInfo.split("\n")[0]
         AlertDialog.Builder(this)
-            .setTitle("Opciones de Producto")
-            .setMessage(productInfo)
-            .setItems(arrayOf("✏️ Editar", "🗑️ Eliminar")) { _, which ->
+            .setTitle(firstLine)
+            .setItems(arrayOf("✏️ Editar Producto", "🗑️ Eliminar Producto")) { _, which ->
                 when (which) {
                     0 -> loadForEdit(productId)
                     1 -> confirmDelete(productId)
                 }
             }
+            .setNegativeButton("Cerrar", null)
             .show()
     }
 
@@ -143,6 +155,7 @@ class ProductsActivity : AppCompatActivity() {
             etMinStock.setText(cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseHelper.COL_PROD_MIN_STOCK)).toString())
             editingId = productId
             btnSave.text = "Actualizar Producto"
+            btnCancel.visibility = View.VISIBLE
             etName.requestFocus()
         }
         cursor.close()
@@ -156,6 +169,12 @@ class ProductsActivity : AppCompatActivity() {
                 dbHelper.writableDatabase.delete(DatabaseHelper.TABLE_PRODUCTS, "${DatabaseHelper.COL_PROD_ID} = ?", arrayOf(productId.toString()))
                 loadProducts()
                 Toast.makeText(this, "Producto eliminado", Toast.LENGTH_SHORT).show()
+                if (editingId == productId) {
+                    editingId = -1
+                    btnSave.text = "Guardar Producto"
+                    btnCancel.visibility = View.GONE
+                    clearFields()
+                }
             }
             .setNegativeButton("Cancelar", null)
             .show()
